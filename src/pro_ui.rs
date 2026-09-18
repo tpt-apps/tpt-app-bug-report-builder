@@ -112,9 +112,11 @@ pub fn mount(
     export_row.set_attribute("class", "brb-actions")?;
     let preview_btn = button(&document, "Preview report")?;
     let md_btn = button(&document, "Export Markdown (Pro sequence)")?;
+    let tracker_btn = button(&document, "Export for a tracker (.md + .png)")?;
     let pdf_btn = button(&document, "Export PDF")?;
     export_row.append_child(&preview_btn)?;
     export_row.append_child(&md_btn)?;
+    export_row.append_child(&tracker_btn)?;
     export_row.append_child(&pdf_btn)?;
     card.append_child(&export_row)?;
 
@@ -222,6 +224,43 @@ pub fn mount(
             }
         });
         md_btn
+            .dyn_ref::<web_sys::HtmlElement>()
+            .expect("button is an HtmlElement")
+            .set_onclick(Some(closure.as_ref().unchecked_ref()));
+        closure.forget();
+    }
+
+    // Export for a tracker: .md with relative links + a sidecar .png per
+    // screenshot, instead of one self-contained file — GitHub/GitLab/Jira
+    // strip `data:` URIs from pasted comments, so the embedded-image export
+    // above doesn't survive being pasted into the tools this report targets.
+    {
+        let sequence = Rc::clone(&sequence);
+        let app_root = app_root.clone();
+        let status_el = status_el.clone();
+        let closure = Closure::<dyn FnMut()>::new(move || {
+            let report = build_report(&app_root, &sequence);
+            match report.validate() {
+                Err(issues) => status_el
+                    .set_text_content(Some(&tpt_bugreport_engine::describe_issues(&issues))),
+                Ok(()) => match markdown::assemble_with_sidecars(&report) {
+                    Ok((text, images)) => {
+                        let file_name = markdown::file_name(&report);
+                        trigger_download_text(&file_name, &text);
+                        for (image_name, png_bytes) in &images {
+                            trigger_download_bytes(image_name, png_bytes, "image/png");
+                        }
+                        status_el.set_text_content(Some(&format!(
+                            "Exported {file_name} + {} screenshot(s).",
+                            images.len()
+                        )));
+                    }
+                    Err(issues) => status_el
+                        .set_text_content(Some(&tpt_bugreport_engine::describe_issues(&issues))),
+                },
+            }
+        });
+        tracker_btn
             .dyn_ref::<web_sys::HtmlElement>()
             .expect("button is an HtmlElement")
             .set_onclick(Some(closure.as_ref().unchecked_ref()));

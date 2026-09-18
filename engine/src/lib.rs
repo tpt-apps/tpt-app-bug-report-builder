@@ -16,6 +16,7 @@
 //!        +--> annotate::render(capture)          <- pixels with mark-up burnt in
 //!        |
 //!        +--> markdown::assemble(report)         <- self-contained .md
+//!        +--> markdown::assemble_with_sidecars(report) <- .md + PNG files, for pasting into a tracker
 //!        |
 //!        +--> pdf::assemble(report)              <- pro only: vector-over-image PDF
 //! ```

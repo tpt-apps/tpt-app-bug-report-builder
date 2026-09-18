@@ -1,11 +1,18 @@
 //! Auto-generated Markdown bug report.
 //!
-//! The output is a single self-contained `.md`: every screenshot is embedded as
-//! a base64 `data:` URI of the **annotated** image, so pasting the file into a
-//! tracker, an issue comment or a chat message shows the mark-up inline with no
-//! sidecar files. Screenshots are emitted in capture order (see
-//! [`Report::ordered`]), which is what makes a multi-screenshot sequence read as
-//! a walkthrough rather than a pile of images.
+//! [`assemble`] produces a single self-contained `.md`: every screenshot is
+//! embedded as a base64 `data:` URI of the **annotated** image, so the file
+//! has no sidecar to lose — open it in a browser, Obsidian, Typora, or attach
+//! it alone to an email and the mark-up is right there. Screenshots are
+//! emitted in capture order (see [`Report::ordered`]), which is what makes a
+//! multi-screenshot sequence read as a walkthrough rather than a pile of
+//! images.
+//!
+//! [`assemble_with_sidecars`] trades that self-containment for tracker
+//! compatibility: GitHub, GitLab and Jira all strip or refuse to render
+//! `data:` URIs in a pasted comment, so a report meant to be pasted into one
+//! needs plain `.png` files sitting next to the `.md` with relative links
+//! instead.
 
 use crate::base64::png_data_uri;
 use crate::model::{
@@ -13,9 +20,37 @@ use crate::model::{
 };
 use crate::png;
 
-/// Assembles the whole report, or returns every validation problem.
+/// Assembles the whole report as a single self-contained `.md`, or returns
+/// every validation problem.
 pub fn assemble(report: &Report) -> Result<String, Vec<ReportError>> {
     report.validate()?;
+    Ok(assemble_body(report, |capture, _| {
+        png_data_uri(&png::encode(&capture.annotated()))
+    }))
+}
+
+/// Assembles the report as a `.md` with relative `![]()` links plus the PNG
+/// bytes each one points at — `(file_name, png_bytes)` pairs the caller
+/// writes next to the `.md` before handing it (or a zip of the lot) to
+/// whoever's filing the bug.
+pub fn assemble_with_sidecars(
+    report: &Report,
+) -> Result<(String, Vec<(String, Vec<u8>)>), Vec<ReportError>> {
+    report.validate()?;
+    let base = sidecar_stem(report);
+    let mut files = Vec::with_capacity(report.captures.len());
+    let markdown = assemble_body(report, |capture, position| {
+        let name = format!("{base}-{position}.png");
+        files.push((name.clone(), png::encode(&capture.annotated())));
+        name
+    });
+    Ok((markdown, files))
+}
+
+/// Shared assembly: `image_target(capture, position)` returns whatever goes
+/// inside `![alt](...)` for that screenshot — a `data:` URI or a relative
+/// file name.
+fn assemble_body(report: &Report, mut image_target: impl FnMut(&Capture, usize) -> String) -> String {
     let ordered = report.ordered();
     let total = ordered.len();
     let mut out = String::with_capacity(4096 + total * 512);
@@ -57,8 +92,10 @@ pub fn assemble(report: &Report) -> Result<String, Vec<ReportError>> {
 
     out.push_str(&format!("## Screenshots ({total})\n\n"));
     for (index, capture) in ordered.iter().enumerate() {
-        out.push_str(&capture_section(capture, index + 1, total));
-        if index + 1 < total {
+        let position = index + 1;
+        let target = image_target(capture, position);
+        out.push_str(&capture_section(capture, position, total, target));
+        if position < total {
             out.push_str("\n---\n\n");
         }
     }
@@ -68,12 +105,12 @@ pub fn assemble(report: &Report) -> Result<String, Vec<ReportError>> {
         crate::model::edition_name(),
         total
     ));
-    Ok(out)
+    out
 }
 
-/// One `### n of m — caption` block: provenance line, inline annotated image,
-/// note and the annotation index.
-pub fn capture_section(capture: &Capture, position: usize, total: usize) -> String {
+/// One `### n of m — caption` block: provenance line, the image (`data:` URI
+/// or relative file name, per `image_target`), note and the annotation index.
+fn capture_section(capture: &Capture, position: usize, total: usize, image_target: String) -> String {
     let caption = if capture.title.trim().is_empty() {
         format!("Screenshot {position}")
     } else {
@@ -101,12 +138,7 @@ pub fn capture_section(capture: &Capture, position: usize, total: usize) -> Stri
     }
     out.push_str(&format!("_{}_\n\n", provenance.join(" | ")));
 
-    let annotated = capture.annotated();
-    out.push_str(&format!(
-        "![{}]({})\n\n",
-        alt_text(&caption),
-        png_data_uri(&png::encode(&annotated))
-    ));
+    out.push_str(&format!("![{}]({image_target})\n\n", alt_text(&caption)));
 
     if !capture.note.trim().is_empty() {
         out.push_str(&format!("> {}\n\n", one_line(&capture.note)));
@@ -120,6 +152,16 @@ pub fn capture_section(capture: &Capture, position: usize, total: usize) -> Stri
         out.push('\n');
     }
     out
+}
+
+/// The shared file-name stem sidecar PNGs are numbered under, e.g.
+/// `crash-on-export-1.png` — reuses [`file_name`]'s slug so both exports
+/// agree on the report's identity.
+fn sidecar_stem(report: &Report) -> String {
+    file_name(report)
+        .strip_suffix(".md")
+        .unwrap_or("bug-report")
+        .to_string()
 }
 
 /// A one-line summary used by hosts that show a preview before exporting.
@@ -276,6 +318,46 @@ mod tests {
     }
 
     #[test]
+    fn sidecar_export_links_instead_of_embedding() {
+        let (markdown, files) = assemble_with_sidecars(&report()).expect("assembles");
+        assert!(
+            !markdown.contains("data:image/png;base64,"),
+            "sidecar export must not embed the image inline"
+        );
+        assert!(markdown.contains("![Blank export dialog](export-dialog-loses-its-rows-1.png)"));
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].0, "export-dialog-loses-its-rows-1.png");
+        assert!(!files[0].1.is_empty());
+        // The file it links to decodes as the same PNG the embedded export
+        // would have inlined.
+        assert_eq!(files[0].1, png::encode(&report().captures[0].annotated()));
+    }
+
+    #[test]
+    fn sidecar_export_also_validates_first() {
+        let mut broken = report();
+        broken.meta.title = "  ".to_string();
+        let issues = assemble_with_sidecars(&broken).expect_err("must fail");
+        assert!(issues.contains(&ReportError::EmptyTitle));
+    }
+
+    // The free edition validates at most one capture, so a second screenshot
+    // is only legal under `--features pro`.
+    #[cfg(feature = "pro")]
+    #[test]
+    fn sidecar_export_numbers_every_screenshot() {
+        let mut multi = report();
+        multi.push(
+            Capture::new(2, RgbaImage::filled(8, 8, [0, 0, 0, 255]).expect("image"))
+                .with_taken_at_ms(1_700_000_001_000.0),
+        );
+        let (markdown, files) = assemble_with_sidecars(&multi).expect("assembles");
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].0, "export-dialog-loses-its-rows-1.png");
+        assert_eq!(files[1].0, "export-dialog-loses-its-rows-2.png");
+        assert!(markdown.contains("](export-dialog-loses-its-rows-1.png)"));
+        assert!(markdown.contains("](export-dialog-loses-its-rows-2.png)"));
+    }
     fn collapses_whitespace_so_the_layout_holds() {
         let mut multiline = report();
         multiline.meta.title = "First\nsecond\tline".to_string();

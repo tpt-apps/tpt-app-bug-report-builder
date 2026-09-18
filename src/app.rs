@@ -25,6 +25,11 @@ use crate::viewer::{self, Viewer};
 #[derive(Debug, Clone)]
 enum Msg {
     Export,
+    /// `.md` + sidecar `.png` files instead of one self-contained file —
+    /// GitHub/GitLab/Jira all strip `data:` URIs from a pasted comment, so
+    /// embedding the screenshot doesn't survive being pasted into the tools
+    /// this report is actually meant for.
+    ExportForTracker,
 }
 
 #[derive(Clone)]
@@ -106,6 +111,14 @@ pub fn mount_app(container: &web_sys::Element) -> Result<(), JsValue> {
             &dispatch_viewer,
             &dispatch_source,
             &dispatch_status,
+            ExportKind::SelfContained,
+        ),
+        Msg::ExportForTracker => export(
+            &dispatch_container,
+            &dispatch_viewer,
+            &dispatch_source,
+            &dispatch_status,
+            ExportKind::Sidecars,
         ),
     });
     let root = tpt_appfront_dom::mount(container, &shell, dispatch)?;
@@ -289,6 +302,10 @@ fn shell_tree() -> UITree<Msg> {
                 .button("Export Markdown report")
                 .class("brb-btn brb-primary")
                 .on_click(Msg::Export);
+            actions
+                .button("Export for a tracker (.md + .png)")
+                .class("brb-btn")
+                .on_click(Msg::ExportForTracker);
         })
         .class("brb-actions");
 
@@ -343,13 +360,24 @@ fn status_view(status: Signal<Status>) -> UITree<Msg> {
         .expect("status view builds exactly one root container")
 }
 
+/// Which of [`markdown::assemble`]'s two output shapes to produce.
+#[derive(Clone, Copy)]
+enum ExportKind {
+    /// One self-contained `.md`, image embedded as a `data:` URI.
+    SelfContained,
+    /// `.md` with a relative link, plus a sidecar `.png` download — the
+    /// shape that survives being pasted into a tracker.
+    Sidecars,
+}
+
 /// Reads the form + viewer, validates, and either reports issues or
-/// assembles the Markdown and triggers a browser download.
+/// assembles the report and triggers the browser download(s) `kind` calls for.
 fn export(
     container: &web_sys::Element,
     viewer_slot: &Rc<RefCell<Option<Viewer>>>,
     capture_source: &Rc<RefCell<Option<String>>>,
     status: &Signal<Status>,
+    kind: ExportKind,
 ) {
     let mut report = Report {
         meta: read_meta(container),
@@ -374,27 +402,34 @@ fn export(
         }
     }
 
-    match report.validate() {
+    if let Err(issues) = report.validate() {
+        status.set(Status::Issues(
+            issues.iter().map(|issue| issue.to_string()).collect(),
+        ));
+        return;
+    }
+
+    let result = match kind {
+        ExportKind::SelfContained => markdown::assemble(&report).map(|text| (text, Vec::new())),
+        ExportKind::Sidecars => markdown::assemble_with_sidecars(&report),
+    };
+    match result {
+        Ok((text, images)) => {
+            let file_name = markdown::file_name(&report);
+            trigger_download(&file_name, &text);
+            for (image_name, png_bytes) in &images {
+                trigger_download_bytes(image_name, "image/png", png_bytes);
+            }
+            status.set(Status::Exported {
+                file_name,
+                summary: markdown::summary(&report),
+            });
+        }
         Err(issues) => {
             status.set(Status::Issues(
                 issues.iter().map(|issue| issue.to_string()).collect(),
             ));
         }
-        Ok(()) => match markdown::assemble(&report) {
-            Ok(text) => {
-                let file_name = markdown::file_name(&report);
-                trigger_download(&file_name, &text);
-                status.set(Status::Exported {
-                    file_name,
-                    summary: markdown::summary(&report),
-                });
-            }
-            Err(issues) => {
-                status.set(Status::Issues(
-                    issues.iter().map(|issue| issue.to_string()).collect(),
-                ));
-            }
-        },
     }
 }
 
@@ -449,11 +484,25 @@ fn trigger_download(file_name: &str, contents: &str) {
     let array = js_sys::Array::new();
     array.push(&JsValue::from_str(contents));
     let bits: JsValue = array.into();
-    let blob = match web_sys::Blob::new_with_str_sequence(&bits) {
-        Ok(blob) => blob,
-        Err(_) => return,
-    };
-    let url = match web_sys::Url::create_object_url_with_blob(&blob) {
+    if let Ok(blob) = web_sys::Blob::new_with_str_sequence(&bits) {
+        download_blob(file_name, &blob);
+    }
+}
+
+/// Same as [`trigger_download`] for binary content (a sidecar `.png`).
+fn trigger_download_bytes(file_name: &str, mime_type: &str, bytes: &[u8]) {
+    let array = js_sys::Array::new();
+    array.push(&js_sys::Uint8Array::from(bytes).into());
+    let bits: JsValue = array.into();
+    let options = web_sys::BlobPropertyBag::new();
+    options.set_type(mime_type);
+    if let Ok(blob) = web_sys::Blob::new_with_u8_array_sequence_and_options(&bits, &options) {
+        download_blob(file_name, &blob);
+    }
+}
+
+fn download_blob(file_name: &str, blob: &web_sys::Blob) {
+    let url = match web_sys::Url::create_object_url_with_blob(blob) {
         Ok(url) => url,
         Err(_) => return,
     };
