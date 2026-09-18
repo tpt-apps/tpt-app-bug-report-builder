@@ -8,6 +8,16 @@
          rejects, and the release profile (opt-level = "z", lto, strip)
          already keeps the payload small. -->
     <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="0" />
+    <!-- Matches src/app.rs's --brb-bg so the page behind the mounted app
+         (visible in the margin around it, or before wasm finishes loading)
+         doesn't stay browser-default white in dark mode. -->
+    <style>
+      html { color-scheme: light dark; background: #ffffff; }
+      @media (prefers-color-scheme: dark) {
+        html { background: #10151f; }
+      }
+      body { margin: 0; padding: 24px; }
+    </style>
   </head>
   <body>
     <!-- Marker div: `start()` mounts here for standalone dev only; when the

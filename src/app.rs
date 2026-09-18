@@ -35,7 +35,7 @@ enum Status {
 }
 
 const BASE_CSS: &str = r#"
-.brb-app{--brb-bg:#ffffff;--brb-panel:#f6f7f9;--brb-fg:#1f2430;--brb-muted:#667085;--brb-border:#d9dee7;--brb-accent:#a4243b;--brb-accent-fg:#ffffff;--brb-err:#b3261e;--brb-err-bg:#fbeeec;--brb-ok:#0e7c6b;--brb-ok-bg:#eaf6f3;max-width:960px;color:var(--brb-fg);font-size:15px;line-height:1.5}
+.brb-app{--brb-bg:#ffffff;--brb-panel:#f6f7f9;--brb-fg:#1f2430;--brb-muted:#667085;--brb-border:#d9dee7;--brb-accent:#a4243b;--brb-accent-fg:#ffffff;--brb-err:#b3261e;--brb-err-bg:#fbeeec;--brb-ok:#0e7c6b;--brb-ok-bg:#eaf6f3;max-width:960px;color-scheme:light dark;background:var(--brb-bg);color:var(--brb-fg);font-size:15px;line-height:1.5}
 @media(prefers-color-scheme:dark){.brb-app{--brb-bg:#10151f;--brb-panel:#161d2a;--brb-fg:#e6e9ef;--brb-muted:#98a2b3;--brb-border:#2a3342;--brb-accent:#e0576f;--brb-accent-fg:#241017;--brb-err:#f2b8b5;--brb-err-bg:#2c1a1c;--brb-ok:#34b39a;--brb-ok-bg:#122622}}
 .brb-app *{box-sizing:border-box}
 .brb-app h2{font-size:1.3rem;margin:0 0 2px}
