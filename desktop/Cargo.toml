@@ -10,4 +10,5 @@ name = "tpt-bug-report-builder-pro"
 path = "src/main.rs"
 
 [dependencies]
-tpt-appfront-webview = { path = "D:/Programming/1PRODUCTION/Open Source/tpt-appfront/crates/tpt-appfront-webview" }
+# Kept in sync with the rev pinned in the root Cargo.toml.
+tpt-appfront-webview = { git = "https://github.com/tpt-solutions/tpt-appfront", rev = "a75a798" }

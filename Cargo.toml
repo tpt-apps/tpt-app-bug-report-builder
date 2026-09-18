@@ -19,8 +19,12 @@ default = []
 pro = ["tpt-bugreport-engine/pro"]
 
 [dependencies]
-tpt-appfront-core = { path = "D:/Programming/1PRODUCTION/Open Source/tpt-appfront/crates/tpt-appfront-core" }
-tpt-appfront-dom = { path = "D:/Programming/1PRODUCTION/Open Source/tpt-appfront/crates/tpt-appfront-dom" }
+# Path deps only resolve on machines with a local tpt-appfront checkout next
+# to this repo (and break CI, which has no such checkout) — pinned to a git
+# rev instead so both local builds and CI fetch the same source. Bump the
+# rev deliberately when picking up upstream tpt-appfront changes.
+tpt-appfront-core = { git = "https://github.com/tpt-solutions/tpt-appfront", rev = "a75a798" }
+tpt-appfront-dom = { git = "https://github.com/tpt-solutions/tpt-appfront", rev = "a75a798" }
 tpt-bugreport-engine = { path = "engine" }
 # Pinned to the installed wasm-bindgen CLI version — the CLI rejects wasm
 # built against a different schema version. Bump both together.
