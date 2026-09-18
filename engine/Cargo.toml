@@ -1,0 +1,26 @@
+[package]
+name = "tpt-bugreport-engine"
+version = "0.1.0"
+edition = "2021"
+description = "Adapter over captured screenshots + annotations: validation, ordering, annotated-image rasterisation, Markdown/PDF report assembly and scrolling-capture stitching. Pure Rust, no UI deps."
+publish = false
+
+[features]
+default = []
+# Pro edition capabilities: multi-screenshot sequences, the auto-generated
+# report assembler (Markdown + PDF) and scrolling-capture stitching. Compiled
+# out of the free WASM build so the free tier is a single marked-up screenshot.
+pro = []
+
+[dev-dependencies]
+# Test-only: prove the hand-rolled DEFLATE/zlib writer and the PNG encoder
+# round-trip against reference implementations. Never linked into the app.
+flate2 = "1"
+png = "0.17"
+# Test-only: parse the hand-written PDF with an independent reader so the
+# writer's xref table, page tree and image XObjects are validated end to end.
+lopdf = "0.31"
+
+[lib]
+name = "tpt_bugreport_engine"
+path = "src/lib.rs"

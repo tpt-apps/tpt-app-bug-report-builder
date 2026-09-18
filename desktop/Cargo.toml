@@ -1,0 +1,13 @@
+[package]
+name = "tpt-bugreport-desktop"
+version = "0.1.0"
+edition = "2021"
+description = "TPT Bug Report Builder Pro - desktop webview shell hosting the appfront DOM bundle."
+publish = false
+
+[[bin]]
+name = "tpt-bug-report-builder-pro"
+path = "src/main.rs"
+
+[dependencies]
+tpt-appfront-webview = { path = "D:/Programming/1PRODUCTION/Open Source/tpt-appfront/crates/tpt-appfront-webview" }
