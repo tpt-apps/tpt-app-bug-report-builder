@@ -79,11 +79,9 @@ Smoke-test the exe standalone before listing it:
 
 ## 5. List it on Gumroad
 
-- Create the Gumroad product (price, description — reuse the free-tier
-  upsell copy in `src/app.rs` / the registry blurb as a starting point).
-- Upload `release\TPT-Bug-Report-Builder-Pro.zip` as the digital download.
-- Paste the resulting product URL into the registry entry's `gumroadUrl`
-  field (uncomment it), flip `status` to `'live'`, commit, push.
+Everything you need — title, price, description, bullets, tags, and the
+after-publish registry steps — is in `GUMROAD.md`. Upload
+`release\TPT-Bug-Report-Builder-Pro.zip` as the digital download.
 
 ## 6. Tell people it exists
 
