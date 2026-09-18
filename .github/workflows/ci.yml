@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    # wasm32 target + the engine's own test suite don't need the GTK/WebKit
+    # system packages the desktop crate's Linux build would pull in, so this
+    # job stays on ubuntu and skips straight past that cost.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+
+      - name: engine tests (free + pro)
+        run: |
+          cargo test -p tpt-bugreport-engine
+          cargo test -p tpt-bugreport-engine --features pro
+
+      - name: wasm type-check (free + pro)
+        run: |
+          cargo check --target wasm32-unknown-unknown -p tpt-app-bug-report-builder
+          cargo check --target wasm32-unknown-unknown --features pro -p tpt-app-bug-report-builder
+
+  desktop:
+    # The Pro shell only ships for Windows (WebView2), and windows-latest
+    # already carries what wry/tao need there — no extra system packages,
+    # unlike a Linux GTK/WebKit build of the same crate.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: desktop shell type-check
+        run: cargo check -p tpt-bugreport-desktop
