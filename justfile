@@ -20,6 +20,10 @@ pro:
 bindgen:
     pwsh -NoLogo -NoProfile -File build.ps1 -SkipBuild
 
+# Build the Pro edition and zip exe + dist into release/ for Gumroad.
+package:
+    pwsh -NoLogo -NoProfile -File build.ps1 -Pro -Package
+
 # Engine validation suite (free + pro) plus a wasm type-check.
 test:
     cargo test -p tpt-bugreport-engine

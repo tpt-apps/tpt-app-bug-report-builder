@@ -22,7 +22,10 @@ param(
     # Build the Pro bundle (--features pro) instead of the free one.
     [switch]$Pro,
     # Only run the wasm-bindgen step against an existing release build.
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    # After a -Pro build, zip the exe + dist into release/ for Gumroad
+    # (same layout as the fea-lite/cutlist-optimizer sibling apps).
+    [switch]$Package
 )
 
 $ErrorActionPreference = "Stop"
@@ -101,6 +104,32 @@ if ($Pro) {
     cargo build --release -p tpt-bugreport-desktop
     if ($LASTEXITCODE -ne 0) { throw "desktop build failed" }
     Write-Host "   exe: target\release\tpt-bug-report-builder-pro.exe (serves dist\)" -ForegroundColor Cyan
+
+    if ($Package) {
+        Write-Host "-- packaging release\TPT Bug Report Builder Pro (for Gumroad)" -ForegroundColor Cyan
+        $ReleaseDir = Join-Path $PSScriptRoot "release"
+        $PkgDir = Join-Path $ReleaseDir "TPT Bug Report Builder Pro"
+        if (Test-Path $ReleaseDir) { Remove-Item $ReleaseDir -Recurse -Force }
+        New-Item -ItemType Directory -Force -Path $PkgDir | Out-Null
+        Copy-Item (Join-Path $PSScriptRoot "target\release\tpt-bug-report-builder-pro.exe") $PkgDir
+        Copy-Item (Join-Path $PSScriptRoot "dist") (Join-Path $PkgDir "dist") -Recurse
+        # WebView2 leaves a per-run *.exe.WebView2\ profile cache next to the
+        # binary; it isn't shipped input, so don't let it leak into the zip
+        # (the cutlist-optimizer sibling app's package accidentally does).
+        @"
+TPT Bug Report Builder Pro
+
+Run tpt-bug-report-builder-pro.exe.
+Requires Windows 10+ with the WebView2 runtime
+(preinstalled on Windows 10 20H2+ and Windows 11).
+
+Multi-screenshot sequences, scrolling capture, Markdown/PDF report export,
+capture hotkeys (Ctrl+Shift+1/2 while the window has focus).
+"@ | Set-Content -Encoding utf8 (Join-Path $PkgDir "README.txt")
+        $Zip = Join-Path $ReleaseDir "TPT-Bug-Report-Builder-Pro.zip"
+        Compress-Archive -Path $PkgDir -DestinationPath $Zip -Force
+        Write-Host "   zip: $Zip" -ForegroundColor Cyan
+    }
 }
 
 Write-Host "-- done" -ForegroundColor Green
