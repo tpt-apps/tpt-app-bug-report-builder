@@ -39,12 +39,15 @@ web-sys = { version = "0.3", features = [
     "HtmlCanvasElement",
     "CanvasRenderingContext2d",
     "HtmlImageElement",
+    "HtmlMediaElement",
     "HtmlVideoElement",
+    "MediaStreamConstraints",
     "ImageData",
     "File",
     "FileList",
     "FileReader",
     "Blob",
+    "BlobPropertyBag",
     "Url",
     "HtmlAnchorElement",
     "Event",
@@ -66,6 +69,9 @@ web-sys = { version = "0.3", features = [
     "NodeList",
 ] }
 console_error_panic_hook = "0.1"
+# Pro-only screen/scrolling capture (getDisplayMedia) needs to await JS
+# promises; free-tier upload/paste stays sync and never touches this.
+wasm-bindgen-futures = "0.4"
 
 [profile.release]
 opt-level = "z"

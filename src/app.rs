@@ -152,7 +152,25 @@ pub fn mount_app(container: &web_sys::Element) -> Result<(), JsValue> {
         })
     };
     capture::mount_upload_input(&capture_holder, on_ready.clone())?;
-    capture::mount_paste_listener(on_ready)?;
+    capture::mount_paste_listener(on_ready.clone())?;
+
+    // Pro's capture-sequence timeline, preview and Markdown/PDF export choice
+    // — a pure addition into the `.brb-pro` placeholder `shell_tree` left for
+    // it; nothing above this line changes between editions.
+    #[cfg(feature = "pro")]
+    {
+        let pro_container = container
+            .query_selector(".brb-pro")?
+            .ok_or_else(|| JsValue::from_str("pro placeholder missing"))?;
+        crate::pro_ui::mount(
+            container,
+            &pro_container,
+            &capture_holder,
+            viewer,
+            on_ready,
+            capture_source,
+        )?;
+    }
 
     Ok(())
 }
@@ -277,6 +295,9 @@ fn shell_tree() -> UITree<Msg> {
         // The reactive status section mounts into this placeholder.
         c.container(|_| {}).class("brb-status");
 
+        // The free-tier upsell doesn't apply once Pro's own capture-sequence
+        // card (appended by `pro_ui::mount`) is already on the page.
+        #[cfg(not(feature = "pro"))]
         c.container(|upsell| {
             upsell.heading(3, "Need more than one screenshot?");
             upsell.text(
@@ -286,6 +307,11 @@ fn shell_tree() -> UITree<Msg> {
             );
         })
         .class("brb-upsell");
+
+        // Placeholder for `pro_ui::mount`'s card (sequence timeline, preview,
+        // PDF export, hotkeys) — appended once by `mount_app`.
+        #[cfg(feature = "pro")]
+        c.container(|_| {}).class("brb-pro");
     })
 }
 

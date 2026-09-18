@@ -18,10 +18,22 @@
 //! Global hotkeys are registered *natively* through
 //! [`AppBuilder::with_shortcut`](tpt_appfront_webview::AppBuilder::with_shortcut)
 //! so they fire while another window has focus — the whole point of a
-//! screen-capture hotkey. Each press arrives at `on_command` as
-//! `shortcut:<id>`; this shell logs it and (when a shortcut is defined for
-//! capture) focuses the window so the bundle can run the capture flow. The
-//! in-page bindings in the bundle handle the focused-window case.
+//! screen-capture hotkey. Each press arrives at `on_command` as the action
+//! `"shortcut"` with `{ "id": <id> }` in `params` (see
+//! `tpt-appfront-webview`'s `manager.rs` event pump — *not* an action string
+//! shaped `shortcut:<id>`, despite that being the natural-looking name);
+//! this shell logs the id. `tpt-appfront-webview` has no call today to push
+//! an event into the hosted page, nor a way for `on_command` to reach the
+//! window/webview handle to focus it (`AppBuilder` exposes no such method) —
+//! a real gap in that crate for this use case, out of scope for this shell
+//! to work around. So a *global* press (window unfocused) is logged but does
+//! not yet trigger a capture; the combo works today whenever the window
+//! already has focus, caught by the bundle's own in-page keydown listener
+//! (`pro_ui::mount` in the UI crate) exactly as it does in a plain browser
+//! tab running the standalone Pro build. Wiring true background-press ->
+//! capture needs an upstream addition to `tpt-appfront-webview` (a window
+//! handle on `on_command`, or a push-to-page call) — noted here rather than
+//! guessed at.
 //!
 //! Resolve order for the bundle directory:
 //! 1. `TPT_BUGREPORT_DIST` environment variable,
@@ -68,13 +80,17 @@ fn main() {
     }
 
     let result = builder.run(|action, params| {
-        // `shortcut:<id>` events come from the native global-hotkey manager;
-        // everything else is the bundle's own IPC. Pro capture hotkeys are
-        // handled in-page once the window has focus, so logging the native
-        // press is enough here (and proves registration worked on a real
-        // machine).
-        if let Some(id) = action.strip_prefix("shortcut:") {
-            eprintln!("tpt-bug-report-builder-pro: global hotkey `{id}` pressed {params}");
+        // The shortcut manager reports the action as the literal string
+        // "shortcut" with the pressed id in `params.id` (see
+        // `tpt-appfront-webview`'s `manager.rs`: `on_command("shortcut",
+        // json!({ "id": id }))`) — not `shortcut:<id>` as the id might
+        // suggest. Everything else is the bundle's own IPC. Logging the
+        // press is enough here to prove registration worked on a real
+        // machine; the capture flow itself runs in-page (see the module doc
+        // above for why a background press can't trigger it directly yet).
+        if action == "shortcut" {
+            let id = params.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+            eprintln!("tpt-bug-report-builder-pro: global hotkey `{id}` pressed");
         }
         Ok(())
     });

@@ -17,6 +17,11 @@ mod app;
 mod capture;
 #[cfg(target_arch = "wasm32")]
 mod viewer;
+// Pro-only UI surface (capture sequence, preview, Markdown/PDF export
+// choice) — see `pro_ui`'s module doc for why it's a separate file rather
+// than `#[cfg]` blocks scattered through `app.rs`.
+#[cfg(all(target_arch = "wasm32", feature = "pro"))]
+mod pro_ui;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
